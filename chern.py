@@ -15,7 +15,7 @@ Code for doing this in a multithready way!
 
 def thread_job(cluster, interactions, phis, basis, states, tol):
     H = twisted_hamiltonian(cluster, interactions, phis, basis)
-    return H.eigsh(k=states, tol=tol)
+    return H.eigsh(which='SA', k=states, tol=tol)
 
 
 def compute_row_vs(cluster, interactions, row_phis, basis,
@@ -85,14 +85,8 @@ def chern_phi_multi(cluster, interactions, phis, basis,
     bs = np.zeros(Lx, dtype=np.complex128)
     for i in tqdm(range(Lx)):
         row_phis = [[phis[i,j,0], phis[i,j,1]] for j in range(Ly)]
-        # energies[i,:,:], vs[i,:,:] = get_row_states(cluster, interactions,
-        #                                             row_phis, basis, states, tol)
-        for j, r in enumerate(compute_row_vs(cluster, interactions,
-                                             row_phis, basis,
-                                             states, tol)):
-            e, v = r
-            energies[i,j,:] = np.sort(e)
-            vs[i,j,:] = v[:,np.argmin(e)]
+        energies[i,:,:], vs[i,:,:] = get_row_states(cluster, interactions,
+                                                    row_phis, basis, states, tol)
     for i in range(Lx):
         bs[i] = np.vdot(vs[i,0,:], vs[(i+1)%Lx,0,:])
         for j in range(Ly):
@@ -136,7 +130,7 @@ def chern_3pt_multi(cluster, interactions, phis, basis, tol=TOL,
     for j in tqdm(range(Ly-1)):
         row_phis = [phis[i,j+1, :] for i in range(Lx)]
         energies[:,j+1,:], vys = get_row_states(cluster, interactions,
-                                                phis_0, basis, states, tol)
+                                                row_phis, basis, states, tol)
         for i in range(Lx):
             v = vs[i,:]
             vx = vs[(i+1)%Lx,:]
@@ -170,11 +164,8 @@ if __name__ == '__main__':
     basis = spin_basis_1d(6, pauli=0)
     c0, e = chern_3pt(hex6, interactions, phis, basis)
     print(c0)
-    print(np.round(e, 3))
     c1, c2, e = chern_phi_multi(hex6, interactions, phis, basis)
     print(c1)
     print(c2)
-    print(np.round(e[:,:,0], 3))
     c3, e, _ = chern_3pt_multi(hex6, interactions, phis, basis)
     print(c3)
-    print(np.round(e[:,:,0], 3))
