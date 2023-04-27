@@ -19,9 +19,9 @@ def thread_job(cluster, interactions, phis, basis, states, tol):
 
 
 def compute_row_vs(cluster, interactions, row_phis, basis,
-                   states, tol):
+                   states, tol, workers=10):
     Nphi = np.shape(row_phis)[0]
-    with futures.ProcessPoolExecutor() as executor:
+    with futures.ProcessPoolExecutor(max_workers=workers) as executor:
         future_results = [executor.submit(thread_job, cluster, interactions,
                                           row_phis[i], basis, states=states,
                                           tol=tol)
@@ -35,13 +35,14 @@ def compute_row_vs(cluster, interactions, row_phis, basis,
 
 
 def get_row_states(cluster, interactions, row_phis, basis,
-                   states, tol):
+                   states, tol, workers=10):
     N = len(row_phis)
     row_energies = np.zeros((N, states))
     row_states = np.zeros((N, basis.Ns), dtype=np.complex128)
     for i, r in enumerate(compute_row_vs(cluster, interactions,
                                          row_phis, basis,
-                                         states, tol)):
+                                         states, tol,
+                                         workers=workers)):
         e, v = r
         row_energies[i,:] = np.sort(e)
         row_states[i,:] = v[:,np.argmin(e)]
@@ -72,23 +73,29 @@ def chern_3pt(cluster, interactions, phis, basis):
     return np.sum(integrand).imag, energies
 
 
-def chern_phi_multi(cluster, interactions, phis, basis,
-                    states=1, tol=TOL):
+def cherns_multi(cluster, interactions, phis, basis,
+                 states=1, tol=TOL, workers=10):
     Lx, Ly, _ = np.shape(phis)
-    energies = np.zeros((Lx, Ly, states))
     ig = np.zeros((Lx, Ly), dtype=np.complex128)
     U1 = np.zeros((Lx, Ly), dtype=np.complex128)
     U2 = np.zeros((Lx, Ly), dtype=np.complex128)
     F = np.zeros((Lx, Ly), dtype=np.complex128)
-    v = None
-    vs = np.zeros((Lx, Ly, basis.Ns), dtype=np.complex128)
-    bs = np.zeros(Lx, dtype=np.complex128)
-    for i in tqdm(range(Lx)):
-        row_phis = [[phis[i,j,0], phis[i,j,1]] for j in range(Ly)]
-        energies[i,:,:], vs[i,:,:] = get_row_states(cluster, interactions,
-                                                    row_phis, basis, states, tol)
+    phis_flat = phis.reshape((Lx*Ly, 2))
+    print(np.shape(phis_flat))
+    print(np.round(np.array(phis_flat)/np.pi, 2))
+    energies_flat = np.zeros((Lx*Ly, states))
+    vs_flat = np.zeros((Lx*Ly, basis.Ns), dtype=np.complex128)
+    for i in range(Lx*Ly):
+        H = twisted_hamiltonian(cluster, interactions, phis_flat[i,:], basis)
+        e, v = H.eigsh(k=1, which='SA')
+        energies_flat[i,:] = np.sort(e)
+        vs_flat[i,:] = v[:,0]
+    # energies_flat, vs_flat = get_row_states(cluster, interactions,
+    #                                         phis_flat, basis, states, tol,
+    #                                         workers=workers)
+    energies = energies_flat.reshape((Lx, Ly, states))
+    vs = vs_flat.reshape((Lx, Ly, basis.Ns))
     for i in range(Lx):
-        bs[i] = np.vdot(vs[i,0,:], vs[(i+1)%Lx,0,:])
         for j in range(Ly):
             v = vs[i,j,:]
             v1 = vs[(i+1)%Lx,j,:]
@@ -106,7 +113,7 @@ def chern_phi_multi(cluster, interactions, phis, basis,
 
 
 def chern_3pt_multi(cluster, interactions, phis, basis, tol=TOL,
-                    states=1):
+                    states=1, workers=10):
     """"
     Calculates the Chern number following the 3-point formula above
     K: vector of floats, [Kx, Ky, Kz] representing couplings of the Kitaev model
@@ -121,7 +128,8 @@ def chern_3pt_multi(cluster, interactions, phis, basis, tol=TOL,
     # Creating first row of states (will save until the end)
     phis_0 = [phis[i,0,:] for i in range(Lx)]
     energies[:,0,:], v0s = get_row_states(cluster, interactions,
-                                          phis_0, basis, states, tol)
+                                          phis_0, basis, states, tol,
+                                          workers=workers)
     vs = v0s.copy()
     vys = np.zeros((Lx, basis.Ns), dtype=np.complex128)
     integrand = np.zeros([Lx, Ly], dtype=np.complex128)
@@ -164,7 +172,7 @@ if __name__ == '__main__':
     basis = spin_basis_1d(6, pauli=0)
     c0, e = chern_3pt(hex6, interactions, phis, basis)
     print(c0)
-    c1, c2, e = chern_phi_multi(hex6, interactions, phis, basis)
+    c1, c2, e = cherns_multi(hex6, interactions, phis, basis)
     print(c1)
     print(c2)
     c3, e, _ = chern_3pt_multi(hex6, interactions, phis, basis)
