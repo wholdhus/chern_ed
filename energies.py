@@ -15,6 +15,12 @@ TYPE = np.float32
 Code for doing this in a multithready way!
 """
 
+
+def thread_job(cluster, interactions, phis, basis, states, tol):
+    H = twisted_hamiltonian(cluster, interactions, phis, basis, dtype=CTYPE)
+    return H.eigsh(which='SA', k=states, tol=tol, return_eigenvectors=False)
+
+
 def compute_cut(cluster, K, hs, phi, basis, states, tol, workers):
     with futures.ProcessPoolExecutor(max_workers=workers) as executor:
         future_results = [executor.submit(thread_job, cluster,
@@ -28,11 +34,6 @@ def compute_cut(cluster, K, hs, phi, basis, states, tol, workers):
                 yield res.result()
             except:
                 print_exc()
-
-
-def thread_job(cluster, interactions, phis, basis, states, tol):
-    H = twisted_hamiltonian(cluster, interactions, phis, basis, dtype=CTYPE)
-    return H.eigsh(which='SA', k=states, tol=tol, return_eigenvectors=False)
 
 
 def get_cut(cluster, K, hs, phi, basis, states=1, tol=TOL, workers=None):
