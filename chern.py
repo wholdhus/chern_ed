@@ -20,13 +20,13 @@ def compute_row_vs(cluster, interactions, row_phis, basis,
     future_results = []
     with futures.ProcessPoolExecutor(max_workers=workers) as executor:
         for i in range(Nphi):
-            print('i = {}'.format(i))
-            print('Phase')
-            print(row_phis[i])
+            # print('i = {}'.format(i))
+            # print('Phase')
+            # print(row_phis[i])
             future_results += [executor.submit(thread_job, cluster, interactions,
                                               row_phis[i], basis, states=states,
                                               tol=tol)]
-            print('Submitted!')
+            # print('Submitted!')
         # future_results = [executor.submit(thread_job, cluster, interactions,
         #                                   row_phis[i], basis, states=states,
         #                                   tol=tol)
@@ -143,7 +143,8 @@ def chern_3pt_multi(cluster, interactions, phis, basis, tol=TOL,
     for j in tqdm(range(Ly-1)):
         row_phis = [phis[i,j+1, :] for i in range(Lx)]
         energies[:,j+1,:], vys = get_row_states(cluster, interactions,
-                                                row_phis, basis, states, tol)
+                                                row_phis, basis, states, tol,
+                                                workers)
         for i in range(Lx):
             v = vs[i,:]
             vx = vs[(i+1)%Lx,:]
